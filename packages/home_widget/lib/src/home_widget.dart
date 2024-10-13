@@ -18,6 +18,14 @@ class HomeWidget {
   /// The AppGroupId used for iOS Widgets
   static String? groupId;
 
+  /// Enable Android Encryption for HomeScreen Widgets
+  ///
+  static void enableAndroidEncryption() {
+    if (Platform.isAndroid) {
+      _channel.invokeMethod('enableAndroidEncryption');
+    }
+  }
+
   /// Save [data] to the Widget Storage
   ///
   /// Returns whether the data was saved or not

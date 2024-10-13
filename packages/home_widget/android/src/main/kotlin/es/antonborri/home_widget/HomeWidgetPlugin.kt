@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -18,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
+import kotlin.jvm.Throws
 
 /** HomeWidgetPlugin */
 class HomeWidgetPlugin :
@@ -29,6 +32,9 @@ class HomeWidgetPlugin :
   private lateinit var channel: MethodChannel
   private lateinit var eventChannel: EventChannel
   private lateinit var context: Context
+  private var shouldEncryptPrefs: Boolean = false
+  private var masterKey: MasterKey? = null
+
 
   private var activity: Activity? = null
   private var receiver: BroadcastReceiver? = null
@@ -42,14 +48,34 @@ class HomeWidgetPlugin :
     eventChannel.setStreamHandler(this)
     context = flutterPluginBinding.applicationContext
   }
+    @Throws(IllegalStateException::class)
+    private fun getPrefs(context: Context): SharedPreferences {
+    if (!shouldEncryptPrefs) {
+      return createSharedPreferences(context)
+    }
+    val masterKey = getOrCreateMasterKey(context)
+    return createEncryptedSharedPreferences(context, masterKey)
+  }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
     when (call.method) {
+      "enableAndroidEncryption"  -> {
+          try {
+            assertCanEncrypt()
+          } catch (e: IllegalStateException) {
+            result.error("-8", e.message, e)
+            return
+          }
+        // only set once, throw exception if set again
+        shouldEncryptPrefs = true
+        getOrCreateMasterKey(context)
+        result.success(true)
+      }
       "saveWidgetData" -> {
         if (call.hasArgument("id") && call.hasArgument("data")) {
           val id = call.argument<String>("id")
           val data = call.argument<Any>("data")
-          val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
+          val prefs = getPrefs(context).edit()
           if (data != null) {
             prefs.putBoolean("$doubleLongPrefix$id", data is Double)
             when (data) {
@@ -81,8 +107,7 @@ class HomeWidgetPlugin :
         if (call.hasArgument("id")) {
           val id = call.argument<String>("id")
           val defaultValue = call.argument<Any>("defaultValue")
-
-          val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+          val prefs = getPrefs(context)
 
           val value = prefs.all[id] ?: defaultValue
 
@@ -223,10 +248,30 @@ class HomeWidgetPlugin :
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
   }
+    @Throws(IllegalStateException::class)
+    private fun getOrCreateMasterKey(context: Context): MasterKey {
+      assertCanEncrypt()
+    if (masterKey != null) {
+      return masterKey!!
+    }
+    masterKey = createHomeWidgetMasterKey(context)
+    return masterKey!!
+  }
+
 
   companion object {
-    internal const val PREFERENCES = "HomeWidgetPreferences"
-
+    const val PREFERENCES = "HomeWidgetPreferences"
+    const val SECURE_PREFERENCES = "EncryptedHomeWidgetPreferences"
+    const val SECURE_KEY_NAME = "HomeWidgetKey"
+    val SECURE_MASTER_KEY_SCHEME = MasterKey.KeyScheme.AES256_GCM
+    val SECURE_KEY_SCHEME = EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV
+    val SECURE_VALUE_SCHEME = EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    @Throws(IllegalStateException::class)
+    internal fun assertCanEncrypt() {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+        throw IllegalStateException("Android Encryption is only available on Android M and above")
+      }
+    }
     private const val INTERNAL_PREFERENCES = "InternalHomeWidgetPreferences"
     private const val CALLBACK_DISPATCHER_HANDLE = "callbackDispatcherHandle"
     private const val CALLBACK_HANDLE = "callbackHandle"
@@ -234,7 +279,28 @@ class HomeWidgetPlugin :
     private const val WIDGET_INFO_KEY_WIDGET_ID = "widgetId"
     private const val WIDGET_INFO_KEY_ANDROID_CLASS_NAME = "androidClassName"
     private const val WIDGET_INFO_KEY_LABEL = "label"
+    fun createSharedPreferences(context: Context): SharedPreferences {
+            return context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+    }
 
+    @Throws(IllegalStateException::class)
+    fun createEncryptedSharedPreferences(context: Context, masterKey: MasterKey): SharedPreferences {
+        assertCanEncrypt()
+      return EncryptedSharedPreferences.create(
+          context,
+          SECURE_PREFERENCES,
+          masterKey,
+          SECURE_KEY_SCHEME,
+          SECURE_VALUE_SCHEME)
+    }
+      @Throws(IllegalStateException::class)
+      fun createHomeWidgetMasterKey(context: Context): MasterKey {
+        assertCanEncrypt()
+        return MasterKey.Builder(context, SECURE_KEY_NAME)
+          .setKeyScheme(SECURE_MASTER_KEY_SCHEME)
+          .setRequestStrongBoxBacked(true)
+          .build()
+    }
     private fun saveCallbackHandle(context: Context, dispatcher: Long, handle: Long) {
       context
           .getSharedPreferences(INTERNAL_PREFERENCES, Context.MODE_PRIVATE)

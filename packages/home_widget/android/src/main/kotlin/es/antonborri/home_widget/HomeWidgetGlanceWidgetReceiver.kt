@@ -22,9 +22,17 @@ abstract class HomeWidgetGlanceWidgetReceiver<T : GlanceAppWidget> : GlanceAppWi
         glanceAppWidget.apply {
           if (this.stateDefinition is HomeWidgetGlanceStateDefinition) {
             // Must Update State
-            updateAppWidgetState<HomeWidgetGlanceState>(
+            updateAppWidgetState(
                 context = context,
                 this.stateDefinition as HomeWidgetGlanceStateDefinition,
+                glanceId) { currentState ->
+                  currentState
+                }
+          } else if (this.stateDefinition is EncryptedHomeWidgetGlanceStateDefinition) {
+            // Must Update State
+            updateAppWidgetState(
+                context = context,
+                this.stateDefinition as EncryptedHomeWidgetGlanceStateDefinition,
                 glanceId) { currentState ->
                   currentState
                 }
