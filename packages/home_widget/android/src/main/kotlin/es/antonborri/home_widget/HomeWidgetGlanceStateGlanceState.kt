@@ -1,10 +1,15 @@
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Environment
+import androidx.annotation.RestrictTo
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.glance.state.GlanceStateDefinition
 import androidx.security.crypto.MasterKey
 import es.antonborri.home_widget.HomeWidgetPlugin
+import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -67,4 +72,3 @@ private class EncryptedHomeWidgetGlanceDataStore(private val preferences: Shared
         return transform(EncryptedHomeWidgetGlanceState(preferences))
     }
 }
-
