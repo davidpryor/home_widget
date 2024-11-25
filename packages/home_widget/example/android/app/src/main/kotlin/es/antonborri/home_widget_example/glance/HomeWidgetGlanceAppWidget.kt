@@ -1,7 +1,7 @@
 package es.antonborri.home_widget_example.glance
 
-import HomeWidgetGlanceState
 import HomeWidgetGlanceStateDefinition
+import HomeWidgetGlanceState
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri

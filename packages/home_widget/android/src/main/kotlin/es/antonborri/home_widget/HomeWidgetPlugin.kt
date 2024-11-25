@@ -11,7 +11,6 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -64,11 +63,9 @@ class HomeWidgetPlugin :
             return prefs!!
         }
         if (!shouldEncryptPrefs) {
-            Log.i("DAVID", "ENCRYPTED PREFS DISABLED")
             prefs = createSharedPreferences(context)
             return prefs!!
         }
-        Log.i("DAVID", "ENCRYPTED PREFS ENABLED")
         val masterKey = getOrCreateMasterKey(context)
         prefs = createEncryptedSharedPreferences(context, masterKey)
         return prefs!!
@@ -78,7 +75,6 @@ class HomeWidgetPlugin :
         call: MethodCall,
         result: Result,
     ) {
-        val methodStart = System.currentTimeMillis()
         mainScope.launch {
             when (call.method) {
                 "enableAndroidEncryption" -> {
@@ -104,14 +100,9 @@ class HomeWidgetPlugin :
                     }
                     val id = call.argument<String>("id")
                     val data = call.argument<Any>("data")
-                    val startLaunch = System.currentTimeMillis()
                     mainScope.launch {
-                        val startGetPrefs = System.currentTimeMillis()
                         val prefs = getPrefs(context).edit()
-                        val endGetPrefs = System.currentTimeMillis()
-                        Log.i("DAVID", "getPrefs took ${endGetPrefs - startGetPrefs}ms")
                         withContext(Dispatchers.IO) {
-                            val startCoroutine = System.currentTimeMillis()
                             if (data != null) {
                                 prefs.putBoolean("$doubleLongPrefix$id", data is Double)
                                 when (data) {
@@ -139,12 +130,8 @@ class HomeWidgetPlugin :
                             }
                             val commitResult: Boolean = prefs.commit()
                             result.threadedSuccess(commitResult)
-                            val endCoroutine = System.currentTimeMillis()
-                            Log.i("DAVID", "coroutine took ${endCoroutine - startCoroutine}ms")
                         }
                     }
-                    val endLaunch = System.currentTimeMillis()
-                    Log.i("DAVID", "launch took ${endLaunch - startLaunch}ms")
                     return@launch
                 }
                 "getWidgetData" -> {
@@ -174,7 +161,6 @@ class HomeWidgetPlugin :
                 "updateWidget" -> {
                     val qualifiedName = call.argument<String>("qualifiedAndroidName")
                     val className = call.argument<String>("android") ?: call.argument<String>("name")
-                    val startTime = System.currentTimeMillis()
                     try {
                         val javaClass = Class.forName(qualifiedName ?: "${context.packageName}.$className")
                         val intent = Intent(context, javaClass)
@@ -193,8 +179,6 @@ class HomeWidgetPlugin :
                             classException,
                         )
                     } finally {
-                        val endTime = System.currentTimeMillis()
-                        Log.i("DAVID", "updateWidget took ${endTime - startTime}ms")
                     }
                     return@launch
                     //                }
@@ -274,8 +258,6 @@ class HomeWidgetPlugin :
                 }
             }
         }
-        val methodEnd = System.currentTimeMillis()
-        Log.i("DAVID", "Method ${call.method} took ${methodEnd - methodStart}ms")
     }
 
     private fun getInstalledWidgets(context: Context): List<Map<String, Any>> {
